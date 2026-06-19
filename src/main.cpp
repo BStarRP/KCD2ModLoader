@@ -114,8 +114,6 @@ BOOL APIENTRY DllMain(HMODULE hmod, DWORD reason, PVOID)
 			    std::this_thread::sleep_for(100ms);
 
 			    kcd2_deferred_init();
-			    kcd2::early_trace("Deferred: waiting for game startup");
-			    std::this_thread::sleep_for(60s);
 
 			    kcd2::early_trace("Deferred: enabling hooks");
 			    g_hooking->enable();
