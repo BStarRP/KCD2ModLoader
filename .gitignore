@@ -7,6 +7,9 @@
 # output directory
 build/
 build-debug/
+build-rel/
+build-final-noltcg/
+build-noicf/
 out/
 *_output.log
 ReturnOfModding/
