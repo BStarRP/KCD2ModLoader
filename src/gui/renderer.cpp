@@ -1,5 +1,6 @@
 #include "gui/renderer.hpp"
 
+#include "dll_proxy/dll_proxy.hpp"
 #include "file_manager/file_manager.hpp"
 #include "fonts/fonts.hpp"
 #include "gui.hpp"
@@ -340,8 +341,7 @@ namespace big
 		swap_chain_desc1.Width            = 1;
 		swap_chain_desc1.Height           = 1;
 
-		// Manually get D3D12CreateDevice export because the user may be running Windows 7
-		const auto d3d12_module = LoadLibraryA("d3d12.dll");
+		const auto d3d12_module = dll_proxy::load_system_d3d12();
 		if (d3d12_module == nullptr)
 		{
 			LOG(ERROR) << "Failed to load d3d12.dll";

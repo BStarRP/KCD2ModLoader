@@ -53,6 +53,10 @@ target_precompile_headers(KCD2ModLoader PRIVATE "${SRC_DIR}/common.hpp")
 
 target_link_libraries(KCD2ModLoader PRIVATE ReturnOfModdingBase zip imguizmo mimalloc-static)
 
+if (MSVC)
+    target_compile_options(KCD2ModLoader PRIVATE /Od /Ob0)
+endif()
+
 # Warnings as errors
 set_property(TARGET KCD2ModLoader PROPERTY COMPILE_WARNING_AS_ERROR ON)
 

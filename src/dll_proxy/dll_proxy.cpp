@@ -161,7 +161,7 @@ static void setupFunctions()
 
 namespace big
 {
-	void dll_proxy::init()
+	static HMODULE load_system_library(LPCWSTR module_name)
 	{
 		BOOL wow64 = FALSE;
 		WCHAR path[MAX_PATH];
@@ -176,9 +176,18 @@ namespace big
 		}
 
 		lstrcatW(path, L"\\");
-		lstrcatW(path, L"D3D12.dll");
-		D3D12.dll = LoadLibraryW(path);
+		lstrcatW(path, module_name);
+		return LoadLibraryW(path);
+	}
 
+	HMODULE dll_proxy::load_system_d3d12()
+	{
+		return load_system_library(L"D3D12.dll");
+	}
+
+	void dll_proxy::init()
+	{
+		D3D12.dll = load_system_d3d12();
 		setupFunctions();
 	}
 
