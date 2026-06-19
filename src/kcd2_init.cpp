@@ -2368,8 +2368,7 @@ namespace big
 				LOG(ERROR) << "Failed to find init_renderer";
 				return;
 			}
-			//add_traced_hook<hook_Initializing_Direct3D>("hook_Initializing_Direct3D", init_renderer.get_call());
-			add_traced_hook<hook_Initializing_Direct3D>("hook_Initializing_Direct3D", init_renderer);
+			add_traced_hook<hook_Initializing_Direct3D>("hook_Initializing_Direct3D", init_renderer.get_call());
 		}
 
 		{
