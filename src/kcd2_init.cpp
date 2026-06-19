@@ -1701,33 +1701,40 @@ namespace big
 
 	EERType safe_render_node_type(IRenderNode *node)
 	{
-		EERType render_node_type = eERType_NotRenderNode;
 		__try
 		{
-			render_node_type = node->GetRenderNodeType();
+			return node->GetRenderNodeType();
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER)
 		{
 			return eERType_NotRenderNode;
 		}
-
-		return render_node_type;
 	}
 
 	std::mutex g_cphysicalentity_mutex;
+
+	static void call_unregister_entity_impl(uintptr_t engine, IRenderNode *render_node)
+	{
+		big::g_hooking->get_original<hook_C3DEngine_UnRegisterEntityImpl>()(engine, render_node);
+	}
+
+	// Debug /Od: keep SEH out of functions with unwinding objects (C2712).
+	static void unregister_one_rendernode(IRenderNode *render_node)
+	{
+		__try
+		{
+			call_unregister_entity_impl(g_C3DEngine, render_node);
+		}
+		__except (EXCEPTION_EXECUTE_HANDLER)
+		{
+		}
+	}
 
 	void unregister_all_rendernode()
 	{
 		for (auto render_node : g_rendernodes)
 		{
-			__try
-			{
-				big::g_hooking->get_original<hook_C3DEngine_UnRegisterEntityImpl>()(g_C3DEngine, render_node);
-			}
-			__except (EXCEPTION_EXECUTE_HANDLER)
-			{
-				continue;
-			}
+			unregister_one_rendernode(render_node);
 		}
 	}
 
