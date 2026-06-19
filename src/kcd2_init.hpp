@@ -1624,4 +1624,5 @@ namespace big
 	}
 
 	void kcd2_init();
+	void kcd2_deferred_init();
 } // namespace big

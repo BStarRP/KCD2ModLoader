@@ -9,6 +9,7 @@
 #include "kcd2_init.hpp"
 #include "logger/exception_handler.hpp"
 #include "memory/byte_patch_manager.hpp"
+#include "memory/module.hpp"
 #include "paths/paths.hpp"
 #include "threads/thread_pool.hpp"
 #include "threads/util.hpp"
@@ -101,10 +102,47 @@ BOOL APIENTRY DllMain(HMODULE hmod, DWORD reason, PVOID)
 
 		hotkey::init_hotkeys();
 
-		kcd2::early_trace("DllMain: enabling hooks");
-		g_hooking->enable();
-		kcd2::early_trace("DllMain: hooks enabled");
-		LOG(INFO) << "Hooking enabled.";
+		// d3d12.dll is loaded while WHGame.dll is still coming up; enabling hooks or
+		// patching its IAT from DllMain breaks LoadLibrary for the game DLL.
+		CreateThread(
+		    nullptr,
+		    0,
+		    [](PVOID) -> DWORD
+		    {
+			    kcd2::early_trace("Deferred: waiting for WHGame.dll");
+			    memory::module("WHGame.dll").wait_for_module(std::chrono::seconds(60));
+			    std::this_thread::sleep_for(100ms);
+
+			    kcd2_deferred_init();
+			    kcd2::early_trace("Deferred: waiting for game startup");
+			    std::this_thread::sleep_for(60s);
+
+			    kcd2::early_trace("Deferred: enabling hooks");
+			    g_hooking->enable();
+			    kcd2::early_trace("Deferred: hooks enabled");
+			    LOG(INFO) << "Hooking enabled.";
+
+			    // Game NGX/D3D init (C_Game::CreateInstance) still runs after WHGame.dll
+			    // maps; probing DXGI/D3D12 or touching entity hooks here races it.
+			    kcd2::early_trace("Deferred: waiting before renderer hook");
+			    std::this_thread::sleep_for(45s);
+
+			    kcd2::early_trace("Deferred: hooking renderer");
+			    if (g_renderer && !g_renderer->hook())
+			    {
+				    LOG(ERROR) << "Renderer hook failed";
+			    }
+			    else if (g_renderer)
+			    {
+				    LOG(INFO) << "Renderer hook installed.";
+			    }
+			    kcd2::early_trace("Deferred: renderer hook done");
+
+			    return 0;
+		    },
+		    nullptr,
+		    0,
+		    nullptr);
 
 		asi_loader::init(hmod);
 

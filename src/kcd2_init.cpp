@@ -2358,18 +2358,9 @@ namespace big
 			add_traced_hook<hook_REGISTER_CVAR>("attachVariable hook", ptr.get_call());
 		}
 
-		{
-			//const auto init_renderer =
-			//kcd2_address::scan("48 89 5C 24 ? 48 89 74 24 ? 48 89 7C 24 ? 55 41 54 41 55 41 56 "
-			//"41 57 48 8B EC 48 83 EC ? 48 8B F1 45 8B F1");
-			const auto init_renderer = kcd2_address::scan("E8 ? ? ? ? 48 83 3D ? ? ? ? ? 75 ? 48 8D 0D");
-			if (!init_renderer)
-			{
-				LOG(ERROR) << "Failed to find init_renderer";
-				return;
-			}
-			add_traced_hook<hook_Initializing_Direct3D>("hook_Initializing_Direct3D", init_renderer.get_call());
-		}
+		// Renderer DXGI/D3D12 hooks are installed from main.cpp after WHGame.dll
+		// finishes loading. The init_renderer pattern target differs on 1.5 and
+		// hooking it with a mismatched signature crashes during NGX init.
 
 		{
 			static constexpr const char *post_input_event_pattern =
@@ -2409,28 +2400,6 @@ namespace big
 			g_show_cbrush_inspector = big::config::general().bind("Inspectors", "CBrush", false, "Show the CBrush Inspector.");
 			g_show_CMergedMeshRenderNode_inspector = big::config::general().bind("Inspectors", "CMergedMesh", false, "Show the CMergedMesh Inspector.");
 			g_show_ptf_inspector = big::config::general().bind("Inspectors", "PTF", true, "Show the PTF Inspector.");
-		}
-
-		{
-			EachImportFunction(::GetModuleHandleA("WHGame.dll"),
-			                   "fmodstudio.dll",
-			                   [](const char *funcname, void *&func)
-			                   {
-				                   if (strcmp(funcname, "?getEvent@System@Studio@FMOD@@QEBA?AW4FMOD_RESULT@@PEBDPEAPEAVEventDescription@23@@Z") == 0)
-				                   {
-					                   fmodstudio_getevent_orig = (fmodstudio_getevent_t)func;
-					                   ForceWrite<void *>(func, hook_fmodstudio_getevent);
-				                   }
-				                   else if (strcmp(funcname, "?loadBankFile@System@Studio@FMOD@@QEAA?AW4FMOD_RESULT@@PEBDIPEAPEAVBank@23@@Z") == 0)
-				                   {
-					                   fmodstudio_loadbankfile_orig = (fmodstudio_loadbankfile_t)func;
-					                   big::ForceWrite<void *>(func, hook_fmodstudio_loadbankfile);
-				                   }
-				                   else if (strcmp(funcname, "?unload@Bank@Studio@FMOD@@QEAA?AW4FMOD_RESULT@@XZ") == 0)
-				                   {
-					                   fmodstudio_bank_unload_orig = (fmodstudio_bank_unload_t)func;
-				                   }
-			                   });
 		}
 
 		{
@@ -2998,5 +2967,32 @@ namespace big
 		}
 
 		kcd2::early_trace("kcd2_init: complete");
+	}
+
+	void kcd2_deferred_init()
+	{
+		kcd2::early_trace("kcd2_deferred_init: start");
+
+		EachImportFunction(::GetModuleHandleA("WHGame.dll"),
+		                   "fmodstudio.dll",
+		                   [](const char *funcname, void *&func)
+		                   {
+			                   if (strcmp(funcname, "?getEvent@System@Studio@FMOD@@QEBA?AW4FMOD_RESULT@@PEBDPEAPEAVEventDescription@23@@Z") == 0)
+			                   {
+				                   fmodstudio_getevent_orig = (fmodstudio_getevent_t)func;
+				                   ForceWrite<void *>(func, hook_fmodstudio_getevent);
+			                   }
+			                   else if (strcmp(funcname, "?loadBankFile@System@Studio@FMOD@@QEAA?AW4FMOD_RESULT@@PEBDIPEAPEAVBank@23@@Z") == 0)
+			                   {
+				                   fmodstudio_loadbankfile_orig = (fmodstudio_loadbankfile_t)func;
+				                   big::ForceWrite<void *>(func, hook_fmodstudio_loadbankfile);
+			                   }
+			                   else if (strcmp(funcname, "?unload@Bank@Studio@FMOD@@QEAA?AW4FMOD_RESULT@@XZ") == 0)
+			                   {
+				                   fmodstudio_bank_unload_orig = (fmodstudio_bank_unload_t)func;
+			                   }
+		                   });
+
+		kcd2::early_trace("kcd2_deferred_init: complete");
 	}
 } // namespace big
