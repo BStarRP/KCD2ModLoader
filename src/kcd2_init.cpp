@@ -2165,27 +2165,55 @@ namespace big
 		void **CXConsoleVFTable              = nullptr;
 		void **C3DEngine_VFTable             = nullptr;
 
+		auto scan_to_vtable = [](const char *pattern, int32_t offset, const char *debug_name) -> void **
+		{
+			const auto hit = kcd2_address::scan(pattern, debug_name);
+			if (!hit)
+			{
+				LOG(ERROR) << "Missed " << debug_name;
+				return nullptr;
+			}
+
+			const auto resolved = hit.offset(offset).rip();
+			if (!resolved)
+			{
+				LOG(ERROR) << "Failed to resolve vtable for " << debug_name;
+				return nullptr;
+			}
+
+			return resolved.as<void **>();
+		};
+
 		auto scan_addresses_and_set_ptr = [&]() -> void
 		{
 			game_lua_call = kcd2_address::scan("E8 ? ? ? ? FF C3 3B DF 7E").get_call();
 			game_lua_checkstack = kcd2_address::scan("E8 ? ? ? ? 85 C0 75 ? 48 8D 15 ? ? ? ? 48 8B CF E8 ? ? ? ? 80 7B").get_call();
-			game_lua_concat       = kcd2_address::scan("E8 ? ? ? ? 2B DF").get_call();
+			game_lua_concat =
+			    kcd2_address::scan("8B D7 49 8B CE E8 ? ? ? ? 2B DF 01 5E 08", "game_lua_concat").offset(5).get_call();
 			game_lua_createtable  = kcd2_address::scan("E8 ? ? ? ? 48 8B 5F ? 48 8B CF 48 2B 5F").get_call();
 			game_lua_error        = kcd2_address::scan("E8 ? ? ? ? 41 83 C8 ? 33 D2").get_call();
 			game_lua_gc           = kcd2_address::scan("E8 ? ? ? ? 41 83 3C 9E").get_call();
 			game_lua_getfenv      = kcd2_address::scan("E8 ? ? ? ? 41 8B C3 48 83 C4").get_call();
 			game_lua_getfield     = kcd2_address::scan("E8 ? ? ? ? 44 8D 7D").get_call();
 			game_lua_getmetatable = kcd2_address::scan("E8 ? ? ? ? 85 C0 75 ? 33 D2 44 8D 40").get_call();
-			game_lua_gettable     = kcd2_address::scan("E8 ? ? ? ? 41 83 CB").get_call();
+			game_lua_gettable     = kcd2_address::scan(
+			                            "0D 40 20 FD BA 03 00 00 00 48 8B CB E8 ? ? ? ? 41 83 CB FF",
+			                            "game_lua_gettable")
+			                            .offset(0xC)
+			                            .get_call();
 			game_lua_insert       = kcd2_address::scan("E8 ? ? ? ? 8B 56 ? 44 8B CF").get_call();
 			game_lua_pcall        = kcd2_address::scan("E8 ? ? ? ? 48 8B 4E ? 8B D7 8B D8").get_call();
-			game_luaV_execute =
-			    kcd2_address::scan("48 8B C4 48 89 58 ? 89 50 ? 55 56 57 41 54 41 55 41 56 41 57 48 81 EC");
+			game_luaV_execute     = kcd2_address::scan(
+			    "48 8B C4 48 89 58 08 48 89 70 10 48 89 78 18 55 41 54 41 55 41 56 41 57 48 81 EC 90 03 00 00",
+			    "game_luaV_execute");
 			game_lua_load             = kcd2_address::scan("E8 ? ? ? ? 48 83 CE ? 85 C0").get_call();
 			CScriptableBase_Init_func = kcd2_address::scan("E8 ? ? ? ? 48 8B CB E8 ? ? ? ? 39 3D").get_call();
 			game_lua_setmetatable =
 			    kcd2_address::scan("40 53 48 83 EC ? 48 8B DA E8 ? ? ? ? 48 8B D3 E8 ? ? ? ? 48 8B 0D");
-			lua_custom_alloc = kcd2_address::scan("E8 ? ? ? ? 33 FF 48 8B D8 48 85 C0 0F 84 ? ? ? ? 48 8D 88").get_call();
+			lua_custom_alloc = kcd2_address::scan(
+			    "E8 ? ? ? ? 33 FF 48 8B D8 48 85 C0 0F 84 ? ? ? ? 48 8D 90 B8 00 00 00",
+			    "lua_custom_alloc")
+			                      .get_call();
 			game_pushref   = kcd2_address::scan("E8 ? ? ? ? 48 8B CB E8 ? ? ? ? 8D 4E ? 8D 56").get_call();
 			game_index2adr = kcd2_address::scan("85 D2 7F ? B8", "game index2adr");
 			game_luaH_new =
@@ -2194,18 +2222,29 @@ namespace big
 			    kcd2_address::scan("E8 ? ? ? ? 49 8D 8E ? ? ? ? 48 8B D7 4C 8D 5C 24").get_call();
 			//	m_p3DEngine = kcd2_address::scan("48 8B 0D ? ? ? ? 48 89 5F 28").offset(3).rip();
 			CXConsole_Ctor = kcd2_address::scan("E8 ? ? ? ? 48 8B C8 EB 03 49 8B CF 48 8B 46 20 48 89 88 A8 00 00 00").get_call();
-			CXConsoleVFTable = CXConsole_Ctor.offset(0x12).rip().as<void **>();
-			CentityVFTable = kcd2_address::scan("48 8D 05 ? ? ? ? 48 89 01 4C 89 A1 A0 00 00 00").offset(3).rip().as<void **>();
-			CStatObjVFTable = kcd2_address::scan("48 8D 05 ? ? ? ? 48 89 77 58 48 89 07").offset(3).rip().as<void **>();
-			CGeomCacheRenderNodeVFTable   = kcd2_address::scan("48 8B F9 4C 89 71 20").offset(0x31).rip().as<void **>();
-			CVegetations_Ctor             = kcd2_address::scan("E8 ? ? ? ? 48 8B D0 F2 0F 10 43").get_call();
-			CVegetationsVFTable           = CVegetations_Ctor.offset(0x3D).rip().as<void **>();
-			CMergedMeshRenderNode_Ctor    = kcd2_address::scan("B9 E0 02 00 00 E8").offset(0x18).get_call();
-			CMergedMeshRenderNode_VFTable = CMergedMeshRenderNode_Ctor.offset(0x95).rip().as<void **>();
-			CBrush_VFTable = kcd2_address::scan("48 8D 05 ? ? ? ? 83 A1 B0 00 00 00 F8").offset(3).rip().as<void **>();
-			CPhysicalEntityVFTable =
-			    kcd2_address::scan("48 8D 05 ? ? ? ? 48 89 06 48 8D 05 ? ? ? ? 88 4E 47").offset(3).rip().as<void **>();
-			C3DEngine_VFTable = kcd2_address::scan("48 8D 0D ? ? ? ? 48 89 0E 48 8D 4E 10").offset(3).rip().as<void **>();
+			CXConsoleVFTable = CXConsole_Ctor ? CXConsole_Ctor.offset(0x12).rip().as<void **>() : nullptr;
+			CentityVFTable = scan_to_vtable("48 8D 05 ? ? ? ? 48 89 01 4C 89 A1 A0 00 00 00", 3, "CentityVFTable");
+			CStatObjVFTable = scan_to_vtable("48 8D 05 ? ? ? ? 48 89 77 58 48 89 07", 3, "CStatObjVFTable");
+			CGeomCacheRenderNodeVFTable = scan_to_vtable(
+			    "48 8D 05 ? ? ? ? 4C 89 71 18 4C 89 71 20 4C 89 71 28",
+			    3,
+			    "CGeomCacheRenderNodeVFTable");
+			CVegetations_Ctor = kcd2_address::scan("E8 ? ? ? ? 48 8B D0 F2 0F 10 43").get_call();
+			CVegetationsVFTable = scan_to_vtable(
+			    "48 8D 05 ? ? ? ? 48 89 01 48 8B C1 48 89 51 50 89 51 58 88 51 5C",
+			    3,
+			    "CVegetationsVFTable");
+			CMergedMeshRenderNode_Ctor = kcd2_address::scan("B9 E0 02 00 00 E8").offset(0x18).get_call();
+			CMergedMeshRenderNode_VFTable = scan_to_vtable(
+			    "48 8D 05 ? ? ? ? 48 89 07 48 8D 05 ? ? ? ? 48 89 47 50 48 8D 05 ? ? ? ? 48 89 47 58",
+			    3,
+			    "CMergedMeshRenderNode_VFTable");
+			CBrush_VFTable = scan_to_vtable("48 8D 05 ? ? ? ? 83 A1 B0 00 00 00 F8", 3, "CBrush_VFTable");
+			CPhysicalEntityVFTable        = scan_to_vtable(
+			    "48 8D 05 ? ? ? ? 48 89 06 48 8D 05 ? ? ? ? 48 89 46 10",
+			    3,
+			    "CPhysicalEntityVFTable");
+			C3DEngine_VFTable = scan_to_vtable("48 8D 0D ? ? ? ? 48 89 0E 48 8D 4E 10", 3, "C3DEngine_VFTable");
 		};
 
 		scan_addresses_and_set_ptr();
@@ -2232,13 +2271,18 @@ namespace big
 		}
 
 		{
-			const auto ptr = kcd2_address::scan("E8 ? ? ? ? 33 D2 83 8B");
+			const auto ptr = kcd2_address::scan("E8 ? ? ? ? 8B 83 ? ? ? ? 33 D2 83 8B");
 			if (!ptr)
 			{
 				LOG(ERROR) << "Failed to find CPhysicalEntity_ctor";
 				return;
 			}
 			big::hooking::detour_hook_helper::add<hook_CPhysicalEntity_ctor>("hook_CPhysicalEntity_ctor", ptr.get_call());
+			if (!CPhysicalEntityVFTable)
+			{
+				LOG(ERROR) << "Failed to resolve CPhysicalEntityVFTable";
+				return;
+			}
 			big::hooking::detour_hook_helper::add<hook_CPhysicalEntity_dctor>("hook_CPhysicalEntity_dctor", CPhysicalEntityVFTable[0]);
 		}
 
@@ -2268,8 +2312,9 @@ namespace big
 		}
 
 		{
-			const auto ptr = kcd2_address::scan(
-			    "48 89 5C 24 ? 57 48 83 EC ? 48 8B DA 48 8B F9 45 84 C0 75 ? 44 38 81 ? ? ? ? 74 ? 83 7A");
+			static constexpr const char *post_input_event_pattern =
+			    "48 89 5C 24 ? 57 48 83 EC ? 48 8B DA 48 8B F9 45 84 C0 75 ? 44 38 81 D8 00 00 00 0F 84 ? ? ? ? 83 7A 10 FF";
+			const auto ptr = kcd2_address::scan(post_input_event_pattern);
 			if (!ptr)
 			{
 				LOG(ERROR) << "Failed to find PostInputEvent";
@@ -2390,8 +2435,10 @@ namespace big
 		}
 
 		{
-			const auto ptr = kcd2_address::scan("48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 48 83 EC ? 41 8A E8 48 "
-			                                    "8B FA 48 8B F1 E8 ? ? ? ? 48 8B 88");
+			static constexpr const char *xml_parser_readonly_read_caller_pattern =
+			    "48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 48 83 EC ? 41 0F B6 E8 48 "
+			    "8B FA 48 8B F1 E8 ? ? ? ? 48 8B 88";
+			const auto ptr = kcd2_address::scan(xml_parser_readonly_read_caller_pattern);
 			if (!ptr)
 			{
 				LOG(ERROR) << "Failed to find XmlParserReadOnly_Read_caller";
@@ -2548,7 +2595,9 @@ namespace big
 		}
 
 		{
-			const auto ptr = kcd2_address::scan("E8 ? ? ? ? 48 8B F8 4C 89 BF");
+			static constexpr const char *cstatobj_ctor_pattern =
+			    "E8 ? ? ? ? 48 8B F8 EB ? 33 FF 4C 89 BF 60 01 00 00";
+			const auto ptr = kcd2_address::scan(cstatobj_ctor_pattern);
 			if (!ptr)
 			{
 				LOG(ERROR) << "Failed to find CStatObj_ctor";
@@ -2571,6 +2620,11 @@ namespace big
 			}
 
 			big::hooking::detour_hook_helper::add<hook_CGeomCacheRenderNode_ctor>("hook_CGeomCacheRenderNode_ctor", ptr.get_call());
+			if (!CGeomCacheRenderNodeVFTable)
+			{
+				LOG(ERROR) << "Failed to resolve CGeomCacheRenderNodeVFTable";
+				return;
+			}
 			big::hooking::detour_hook_helper::add<hook_CGeomCacheRenderNode_dctor>("hook_CGeomCacheRenderNode_dctor", CGeomCacheRenderNodeVFTable[0]);
 		}
 
@@ -2583,6 +2637,11 @@ namespace big
 			}
 
 			big::hooking::detour_hook_helper::add<hook_CVegetation_ctor>("hook_CVegetation_ctor", ptr);
+			if (!CVegetationsVFTable)
+			{
+				LOG(ERROR) << "Failed to resolve CVegetationsVFTable";
+				return;
+			}
 			big::hooking::detour_hook_helper::add<hook_CVegetation_dctor>("hook_CVegetation_dctor", CVegetationsVFTable[0]);
 		}
 
@@ -2595,12 +2654,18 @@ namespace big
 			}
 
 			big::hooking::detour_hook_helper::add<hook_CMergedMeshRenderNode_ctor>("hook_CMergedMeshRenderNode_ctor", ptr);
+			if (!CMergedMeshRenderNode_VFTable)
+			{
+				LOG(ERROR) << "Failed to resolve CMergedMeshRenderNode_VFTable";
+				return;
+			}
 			big::hooking::detour_hook_helper::add<hook_CMergedMeshRenderNode_dctor>("hook_CMergedMeshRenderNode_dctor", CMergedMeshRenderNode_VFTable[0]);
 		}
 
 		{
-			const auto ptr = kcd2_address::scan("48 89 5C 24 ? 48 89 74 24 ? 48 89 7C 24 ? 55 41 54 41 55 41 56 41 "
-			                                    "57 48 8B EC 48 83 EC ? 48 8B F9 E8");
+			static constexpr const char *c_player_state_movement_ctor_pattern =
+			    "48 89 5C 24 ? 48 89 74 24 ? 48 89 7C 24 ? 55 41 54 41 55 41 56 41 57 48 8B EC 48 83 EC ? 48 8B F9 45 33 FF 48 8B 49 48";
+			const auto ptr = kcd2_address::scan(c_player_state_movement_ctor_pattern);
 			if (!ptr)
 			{
 				LOG(ERROR) << "Failed to find C_PlayerStateMovement_ctor";
@@ -2610,8 +2675,9 @@ namespace big
 		}
 
 		{
-			const auto ptr =
-			    kcd2_address::scan("40 55 53 56 57 41 56 48 8B EC 48 81 EC ? ? ? ? 48 8B D9 E8 ? ? ? ? 33 F6");
+			static constexpr const char *c_player_ctor_pattern =
+			    "40 55 53 56 57 41 56 48 8B EC 48 81 EC ? ? ? ? 48 8B D9 E8 ? ? ? ? 48 8B F0";
+			const auto ptr = kcd2_address::scan(c_player_ctor_pattern);
 			if (!ptr)
 			{
 				LOG(ERROR) << "Failed to find C_Player_ctor";
@@ -2635,8 +2701,9 @@ namespace big
 		}
 
 		{
-			const auto ptr =
-			    kcd2_address::scan("E8 ? ? ? ? F3 44 0F 10 05 ? ? ? ? 48 8D 45 ? 48 89 44 24 ? 41 0F 28 D8");
+			static constexpr const char *unproject_from_screen_pattern =
+			    "E8 ? ? ? ? F3 44 0F 10 05 ? ? ? ? 48 8D 45 ? 48 8D 4D 14";
+			const auto ptr = kcd2_address::scan(unproject_from_screen_pattern);
 			if (!ptr)
 			{
 				LOG(ERROR) << "Failed to find CD3D9Renderer_UnProjectFromScreen";
