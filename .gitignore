@@ -6,7 +6,10 @@
 
 # output directory
 build/
+build-debug/
 out/
+*_output.log
+ReturnOfModding/
 __pycache__/
 
 # precompiled headers

@@ -62,6 +62,38 @@ end
 
 -- UI Showcase
 
+local entity_api_checked = false
+
+local function run_entity_api_test()
+	if entity_api_checked or not rom.game or not rom.game.player then
+		return
+	end
+
+	entity_api_checked = true
+
+	local ok, err = pcall(function()
+		local player = rom.game.player
+		local pos = player:GetWorldPos()
+		rom.log.info(string.format("[TestMod] player GetWorldPos: %.2f, %.2f, %.2f", pos.x, pos.y, pos.z))
+
+		local by_name = rom.game.System.GetEntityByName("player")
+		if by_name then
+			rom.log.info("[TestMod] System.GetEntityByName('player') ok")
+			by_name:SetWorldPos(pos)
+			rom.log.info("[TestMod] Entity:SetWorldPos round-trip ok")
+		else
+			rom.log.warning("[TestMod] System.GetEntityByName('player') returned nil; using rom.game.player for SetWorldPos")
+			player:SetWorldPos(pos)
+			rom.log.info("[TestMod] rom.game.player SetWorldPos round-trip ok")
+		end
+	end)
+
+	if not ok then
+		rom.log.error("[TestMod] entity API test failed: " .. tostring(err))
+		entity_api_checked = false
+	end
+end
+
 local example_bool = false
 rom.gui.add_to_menu_bar(function()
     local new_value, clicked = rom.ImGui.Checkbox("Example Bool", example_bool)
@@ -72,6 +104,8 @@ rom.gui.add_to_menu_bar(function()
 end)
 
 rom.gui.add_imgui(function()
+	run_entity_api_test()
+
     -- rom.ImGui.PushStyleColor(rom.ImGuiCol.WindowBg, 1, 1, 1, 1)
     
    if rom.ImGui.Begin("My Custom Window") then

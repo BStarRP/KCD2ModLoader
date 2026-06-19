@@ -5,6 +5,7 @@
 #include "hooks/hooking.hpp"
 #include "input/hotkey.hpp"
 #include "kcd2_address.hpp"
+#include "kcd2_early_trace.hpp"
 #include "kcd2_init.hpp"
 #include "logger/exception_handler.hpp"
 #include "memory/byte_patch_manager.hpp"
@@ -23,12 +24,19 @@ BOOL APIENTRY DllMain(HMODULE hmod, DWORD reason, PVOID)
 
 	if (reason == DLL_PROCESS_ATTACH)
 	{
+		kcd2::early_trace_clear();
+		kcd2::early_trace("DllMain: attach start");
+
 		dll_proxy::init();
+		kcd2::early_trace("DllMain: dll_proxy initialized");
 
 		if (!rom::is_rom_enabled())
 		{
+			kcd2::early_trace("DllMain: rom disabled, exiting");
 			return true;
 		}
+
+		kcd2::early_trace("DllMain: rom enabled");
 
 		// Lua API: Namespace
 		// Name: rom
@@ -79,18 +87,23 @@ BOOL APIENTRY DllMain(HMODULE hmod, DWORD reason, PVOID)
 		// Purposely leak it, we are not unloading this module in any case.
 		auto byte_patch_manager_instance = new byte_patch_manager();
 		LOG(INFO) << "Byte Patch Manager initialized.";
+		kcd2::early_trace("DllMain: calling kcd2_init");
 		kcd2_init();
+		kcd2::early_trace("DllMain: kcd2_init returned");
 
 		// Purposely leak it, we are not unloading this module in any case.
 		auto hooking_instance = new hooking();
 		LOG(INFO) << "Hooking initialized.";
+		kcd2::early_trace("DllMain: hooking constructed");
 
 		auto renderer_instance = new renderer();
 		LOG(INFO) << "Renderer initialized.";
 
 		hotkey::init_hotkeys();
 
+		kcd2::early_trace("DllMain: enabling hooks");
 		g_hooking->enable();
+		kcd2::early_trace("DllMain: hooks enabled");
 		LOG(INFO) << "Hooking enabled.";
 
 		asi_loader::init(hmod);
